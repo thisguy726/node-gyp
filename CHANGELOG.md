@@ -1,5 +1,12 @@
 # Changelog
 
+### [9.0.1](https://www.github.com/nodejs/node-gyp/compare/v9.0.0...v9.0.1) (2022-03-07)
+
+
+### Tests
+
+* Upgrade GitHub Actions ([#2623](https://www.github.com/nodejs/node-gyp/issues/2623)) ([245cd5b](https://www.github.com/nodejs/node-gyp/commit/245cd5bbe4441d4f05e88f2fa20a86425419b6af))
+
 ## [9.0.0](https://www.github.com/nodejs/node-gyp/compare/v8.4.1...v9.0.0) (2022-02-24)
 
 
