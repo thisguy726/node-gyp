@@ -42,9 +42,9 @@ def ExceptionAppend(e, msg):
     if not e.args:
         e.args = (msg,)
     elif len(e.args) == 1:
-        e.args = (str(e.args[0]) + " " + msg,)
+        e.args = (f"{str(e.args[0])} {msg}", )
     else:
-        e.args = (str(e.args[0]) + " " + msg,) + e.args[1:]
+        e.args = (f"{str(e.args[0])} {msg}", ) + e.args[1:]
 
 
 def FindQualifiedTargets(target, qualified_list):
@@ -127,9 +127,9 @@ def QualifiedTarget(build_file, target, toolset):
     # "Qualified" means the file that a target was defined in and the target
     # name, separated by a colon, suffixed by a # and the toolset name:
     # /path/to/file.gyp:target_name#toolset
-    fully_qualified = build_file + ":" + target
+    fully_qualified = f"{build_file}:{target}"
     if toolset:
-        fully_qualified = fully_qualified + "#" + toolset
+        fully_qualified = f"{fully_qualified}#{toolset}"
     return fully_qualified
 
 
@@ -144,20 +144,16 @@ def RelativePath(path, relative_to, follow_path_symlink=True):
     # symlink, this option has no effect.
 
     # Convert to normalized (and therefore absolute paths).
-    if follow_path_symlink:
-        path = os.path.realpath(path)
-    else:
-        path = os.path.abspath(path)
+    path = os.path.realpath(path) if follow_path_symlink else os.path.abspath(path)
     relative_to = os.path.realpath(relative_to)
 
     # On Windows, we can't create a relative path to a different drive, so just
     # use the absolute path.
-    if sys.platform == "win32":
-        if (
-            os.path.splitdrive(path)[0].lower()
-            != os.path.splitdrive(relative_to)[0].lower()
-        ):
-            return path
+    if sys.platform == "win32" and (
+        os.path.splitdrive(path)[0].lower()
+        != os.path.splitdrive(relative_to)[0].lower()
+    ):
+        return path
 
     # Split the paths into components.
     path_split = path.split(os.path.sep)
@@ -172,12 +168,7 @@ def RelativePath(path, relative_to, follow_path_symlink=True):
         len(relative_to_split) - prefix_len
     ) + path_split[prefix_len:]
 
-    if len(relative_split) == 0:
-        # The paths were the same.
-        return ""
-
-    # Turn it back into a string and we're done.
-    return os.path.join(*relative_split)
+    return "" if len(relative_split) == 0 else os.path.join(*relative_split)
 
 
 @memoize
@@ -196,9 +187,7 @@ def InvertRelativePath(path, toplevel_dir=None):
 
 def FixIfRelativePath(path, relative_to):
     # Like RelativePath but returns |path| unchanged if it is absolute.
-    if os.path.isabs(path):
-        return path
-    return RelativePath(path, relative_to)
+    return path if os.path.isabs(path) else RelativePath(path, relative_to)
 
 
 def UnrelativePath(path, relative_to):
@@ -277,14 +266,8 @@ def EncodePOSIXShellArgument(argument):
     if not isinstance(argument, str):
         argument = str(argument)
 
-    if _quote.search(argument):
-        quote = '"'
-    else:
-        quote = ""
-
-    encoded = quote + re.sub(_escape, r"\\\1", argument) + quote
-
-    return encoded
+    quote = '"' if _quote.search(argument) else ""
+    return quote + re.sub(_escape, r"\\\1", argument) + quote
 
 
 def EncodePOSIXShellList(list):
@@ -294,9 +277,7 @@ def EncodePOSIXShellList(list):
   together using the space character as an argument separator.
   """
 
-    encoded_arguments = []
-    for argument in list:
-        encoded_arguments.append(EncodePOSIXShellArgument(argument))
+    encoded_arguments = [EncodePOSIXShellArgument(argument) for argument in list]
     return " ".join(encoded_arguments)
 
 
@@ -343,6 +324,8 @@ def WriteOnDiff(filename):
     the target if it differs (on close).
   """
 
+
+
     class Writer:
         """Wrapper around file which only covers the target if it differs."""
 
@@ -359,9 +342,10 @@ def WriteOnDiff(filename):
             # Pick temporary file.
             tmp_fd, self.tmp_path = tempfile.mkstemp(
                 suffix=".tmp",
-                prefix=os.path.split(filename)[1] + ".gyp.",
+                prefix=f"{os.path.split(filename)[1]}.gyp.",
                 dir=base_temp_dir,
             )
+
             try:
                 self.tmp_file = os.fdopen(tmp_fd, "wb")
             except Exception:
@@ -419,6 +403,7 @@ def WriteOnDiff(filename):
         def write(self, s):
             self.tmp_file.write(s.encode("utf-8"))
 
+
     return Writer()
 
 
@@ -452,10 +437,7 @@ def GetFlavor(params):
         return "netbsd"
     if sys.platform.startswith("aix"):
         return "aix"
-    if sys.platform.startswith(("os390", "zos")):
-        return "zos"
-
-    return "linux"
+    return "zos" if sys.platform.startswith(("os390", "zos")) else "linux"
 
 
 def CopyTool(flavor, out_path, generator_flags={}):
@@ -463,16 +445,21 @@ def CopyTool(flavor, out_path, generator_flags={}):
   to |out_path|."""
     # aix and solaris just need flock emulation. mac and win use more complicated
     # support scripts.
-    prefix = {"aix": "flock", "solaris": "flock", "mac": "mac", "win": "win"}.get(
-        flavor, None
-    )
+    prefix = {
+        "aix": "flock",
+        "solaris": "flock",
+        "mac": "mac",
+        "win": "win",
+    }.get(flavor)
+
     if not prefix:
         return
 
     # Slurp input file.
     source_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "%s_tool.py" % prefix
+        os.path.dirname(os.path.abspath(__file__)), f"{prefix}_tool.py"
     )
+
     with open(source_path) as source_file:
         source = source_file.readlines()
 
@@ -483,7 +470,7 @@ def CopyTool(flavor, out_path, generator_flags={}):
         header += "import os;\nos.environ['DEVELOPER_DIR']='%s'\n" % mac_toolchain_dir
 
     # Add header and write it out.
-    tool_path = os.path.join(out_path, "gyp-%s-tool" % prefix)
+    tool_path = os.path.join(out_path, f"gyp-{prefix}-tool")
     with open(tool_path, "w") as tool_file:
         tool_file.write("".join([source[0], header] + source[1:]))
 
@@ -560,9 +547,11 @@ class OrderedSet(MutableSet):
         return key
 
     def __repr__(self):
-        if not self:
-            return f"{self.__class__.__name__}()"
-        return f"{self.__class__.__name__}({list(self)!r})"
+        return (
+            f"{self.__class__.__name__}({list(self)!r})"
+            if self
+            else f"{self.__class__.__name__}()"
+        )
 
     def __eq__(self, other):
         if isinstance(other, OrderedSet):
@@ -583,7 +572,7 @@ class CycleError(Exception):
         self.nodes = nodes
 
     def __str__(self):
-        return "CycleError: cycle involving: " + str(self.nodes)
+        return f"CycleError: cycle involving: {str(self.nodes)}"
 
 
 def TopologicallySorted(graph, get_edges):

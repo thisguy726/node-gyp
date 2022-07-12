@@ -141,7 +141,7 @@ class _Boolean(_Type):
     """Boolean settings, can have the values 'false' or 'true'."""
 
     def _Validate(self, value):
-        if value != "true" and value != "false":
+        if value not in ["true", "false"]:
             raise ValueError("expected bool; got %r" % value)
 
     def ValidateMSVS(self, value):
@@ -171,7 +171,7 @@ class _Integer(_Type):
         int(value, self._msbuild_base)
 
     def ConvertToMSBuild(self, value):
-        msbuild_format = (self._msbuild_base == 10) and "%d" or "0x%04x"
+        msbuild_format = "%d" if self._msbuild_base == 10 else "0x%04x"
         return msbuild_format % int(value)
 
 
@@ -201,7 +201,7 @@ class _Enumeration(_Type):
 
     def ValidateMSBuild(self, value):
         if value not in self._msbuild_values:
-            raise ValueError("unrecognized enumerated value %s" % value)
+            raise ValueError(f"unrecognized enumerated value {value}")
 
     def ConvertToMSBuild(self, value):
         index = int(value)
@@ -212,7 +212,7 @@ class _Enumeration(_Type):
             )
         label = self._label_list[index]
         if label is None:
-            raise ValueError("converted value for %s not specified." % value)
+            raise ValueError(f"converted value for {value} not specified.")
         return label
 
 
@@ -360,7 +360,7 @@ def _CustomGeneratePreprocessedFile(tool, msvs_name):
             tool_settings["PreprocessToFile"] = "true"
             tool_settings["PreprocessSuppressLineNumbers"] = "true"
         else:
-            raise ValueError("value must be one of [0, 1, 2]; got %s" % value)
+            raise ValueError(f"value must be one of [0, 1, 2]; got {value}")
 
     # Create a bogus validator that looks for '0', '1', or '2'
     msvs_validator = _Enumeration(["a", "b", "c"]).ValidateMSVS
@@ -396,9 +396,8 @@ def _ValidateExclusionSetting(setting, settings, error_msg, stderr=sys.stderr):
     # This may be unrecognized because it's an exclusion list. If the
     # setting name has the _excluded suffix, then check the root name.
     unrecognized = True
-    m = re.match(_EXCLUDED_SUFFIX_RE, setting)
-    if m:
-        root_setting = m.group(1)
+    if m := re.match(_EXCLUDED_SUFFIX_RE, setting):
+        root_setting = m[1]
         unrecognized = root_setting not in settings
 
     if unrecognized:
@@ -544,7 +543,7 @@ def _ValidateSettings(validators, settings, stderr):
                     )
 
         else:
-            print("Warning: unrecognized tool %s" % (tool_name), file=stderr)
+            print(f"Warning: unrecognized tool {tool_name}", file=stderr)
 
 
 # MSVS and MBuild names of the tools.

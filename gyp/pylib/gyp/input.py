@@ -71,10 +71,7 @@ def IsPathSection(section):
         tail = section[-6:]
         if tail[-1] == "s":
             tail = tail[:-1]
-        if tail[-5:] in ("_file", "_path"):
-            return True
-        return tail[-4:] == "_dir"
-
+        return True if tail[-5:] in ("_file", "_path") else tail[-4:] == "_dir"
     return False
 
 
@@ -239,11 +236,11 @@ def LoadOneBuildFile(build_file_path, data, aux_data, includes, is_target, check
         e.filename = build_file_path
         raise
     except Exception as e:
-        gyp.common.ExceptionAppend(e, "while reading " + build_file_path)
+        gyp.common.ExceptionAppend(e, f"while reading {build_file_path}")
         raise
 
     if type(build_file_data) is not dict:
-        raise GypError("%s does not evaluate to a dictionary." % build_file_path)
+        raise GypError(f"{build_file_path} does not evaluate to a dictionary.")
 
     data[build_file_path] = build_file_data
     aux_data[build_file_path] = {}
@@ -260,9 +257,7 @@ def LoadOneBuildFile(build_file_path, data, aux_data, includes, is_target, check
                     build_file_data, build_file_path, data, aux_data, None, check
                 )
         except Exception as e:
-            gyp.common.ExceptionAppend(
-                e, "while reading includes of " + build_file_path
-            )
+            gyp.common.ExceptionAppend(e, f"while reading includes of {build_file_path}")
             raise
 
     return build_file_data
@@ -376,11 +371,7 @@ def LoadTargetBuildFile(
         # temporary measure. This should really be addressed by keeping all paths
         # in POSIX until actual project generation.
         d = gyp.common.RelativePath(depth, os.path.dirname(build_file_path))
-        if d == "":
-            variables["DEPTH"] = "."
-        else:
-            variables["DEPTH"] = d.replace("\\", "/")
-
+        variables["DEPTH"] = "." if d == "" else d.replace("\\", "/")
     # The 'target_build_files' key is only set when loading target build files in
     # the non-parallel code path, where LoadTargetBuildFile is called
     # recursively.  In the parallel code path, we don't need to check whether the
@@ -407,7 +398,7 @@ def LoadTargetBuildFile(
     # Set up the included_files key indicating which .gyp files contributed to
     # this target dict.
     if "included_files" in build_file_data:
-        raise GypError(build_file_path + " must not contain included_files key")
+        raise GypError(f"{build_file_path} must not contain included_files key")
 
     included = GetIncludedBuildFiles(build_file_path, aux_data)
     build_file_data["included_files"] = []
@@ -436,7 +427,7 @@ def LoadTargetBuildFile(
     # targets.
     if "target_defaults" in build_file_data:
         if "targets" not in build_file_data:
-            raise GypError("Unable to find targets in build file %s" % build_file_path)
+            raise GypError(f"Unable to find targets in build file {build_file_path}")
 
         index = 0
         while index < len(build_file_data["targets"]):
@@ -470,31 +461,31 @@ def LoadTargetBuildFile(
         for target_dict in build_file_data["targets"]:
             if "dependencies" not in target_dict:
                 continue
-            for dependency in target_dict["dependencies"]:
-                dependencies.append(
-                    gyp.common.ResolveTarget(build_file_path, dependency, None)[0]
-                )
+            dependencies.extend(
+                gyp.common.ResolveTarget(build_file_path, dependency, None)[0]
+                for dependency in target_dict["dependencies"]
+            )
 
-    if load_dependencies:
-        for dependency in dependencies:
-            try:
-                LoadTargetBuildFile(
-                    dependency,
-                    data,
-                    aux_data,
-                    variables,
-                    includes,
-                    depth,
-                    check,
-                    load_dependencies,
-                )
-            except Exception as e:
-                gyp.common.ExceptionAppend(
-                    e, "while loading dependencies of %s" % build_file_path
-                )
-                raise
-    else:
+    if not load_dependencies:
         return (build_file_path, dependencies)
+    for dependency in dependencies:
+        try:
+            LoadTargetBuildFile(
+                dependency,
+                data,
+                aux_data,
+                variables,
+                includes,
+                depth,
+                check,
+                load_dependencies,
+            )
+        except Exception as e:
+            gyp.common.ExceptionAppend(
+                e, f"while loading dependencies of {build_file_path}"
+            )
+
+            raise
 
 
 def CallLoadTargetBuildFile(
@@ -617,9 +608,9 @@ def LoadTargetBuildFilesParallel(
 
     try:
         parallel_state.condition.acquire()
-        while parallel_state.dependencies or parallel_state.pending:
-            if parallel_state.error:
-                break
+        while (
+            parallel_state.dependencies or parallel_state.pending
+        ) and not parallel_state.error:
             if not parallel_state.dependencies:
                 parallel_state.condition.wait()
                 continue
@@ -694,19 +685,15 @@ def IsStrCanonicalInt(string):
 
   The canonical form is such that str(int(string)) == string.
   """
-    if type(string) is str:
-        # This function is called a lot so for maximum performance, avoid
-        # involving regexps which would otherwise make the code much
-        # shorter. Regexps would need twice the time of this function.
-        if string:
-            if string == "0":
-                return True
-            if string[0] == "-":
-                string = string[1:]
-                if not string:
-                    return False
-            if "1" <= string[0] <= "9":
-                return string.isdigit()
+    if type(string) is str and string:
+        if string == "0":
+            return True
+        if string[0] == "-":
+            string = string[1:]
+            if not string:
+                return False
+        if "1" <= string[0] <= "9":
+            return string.isdigit()
 
     return False
 

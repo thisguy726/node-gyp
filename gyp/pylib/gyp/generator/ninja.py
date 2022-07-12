@@ -65,9 +65,7 @@ generator_supports_multiple_toolsets = gyp.common.CrossCompileRequested()
 
 
 def StripPrefix(arg, prefix):
-    if arg.startswith(prefix):
-        return arg[len(prefix) :]
-    return arg
+    return arg[len(prefix) :] if arg.startswith(prefix) else arg
 
 
 def QuoteShellArgument(arg, flavor):
@@ -89,7 +87,7 @@ def Define(d, flavor):
         # cl.exe replaces literal # characters with = in preprocessor definitions for
         # some reason. Octal-encode to work around that.
         d = d.replace("#", "\\%03o" % ord("#"))
-    return QuoteShellArgument(ninja_syntax.escape("-D" + d), flavor)
+    return QuoteShellArgument(ninja_syntax.escape(f"-D{d}"), flavor)
 
 
 def AddArch(output, arch):
@@ -171,7 +169,7 @@ class Target:
         """Return the path, if any, that should be used as a dependency of
         any dependent action step."""
         if self.UsesToc(flavor):
-            return self.FinalOutput() + ".TOC"
+            return f"{self.FinalOutput()}.TOC"
         return self.FinalOutput() or self.preaction_stamp
 
     def PreCompileInput(self):
@@ -245,10 +243,7 @@ class NinjaWriter:
         self.obj_ext = ".obj" if flavor == "win" else ".o"
         if flavor == "win":
             # See docstring of msvs_emulation.GenerateEnvironmentFiles().
-            self.win_env = {}
-            for arch in ("x86", "x64"):
-                self.win_env[arch] = "environment." + arch
-
+            self.win_env = {arch: f"environment.{arch}" for arch in ("x86", "x64")}
         # Relative path from build output dir to base dir.
         build_to_top = gyp.common.InvertRelativePath(build_dir, toplevel_dir)
         self.build_to_base = os.path.join(build_to_top, base_dir)
@@ -269,7 +264,7 @@ class NinjaWriter:
             if product_dir:
                 path = path.replace(PRODUCT_DIR, product_dir)
             else:
-                path = path.replace(PRODUCT_DIR + "/", "")
+                path = path.replace(f"{PRODUCT_DIR}/", "")
                 path = path.replace(PRODUCT_DIR + "\\", "")
                 path = path.replace(PRODUCT_DIR, ".")
 
@@ -342,7 +337,7 @@ class NinjaWriter:
 
         obj = "obj"
         if self.toolset != "target":
-            obj += "." + self.toolset
+            obj += f".{self.toolset}"
 
         path_dir, path_basename = os.path.split(path)
         assert not os.path.isabs(path_dir), (
@@ -350,7 +345,7 @@ class NinjaWriter:
         )
 
         if qualified:
-            path_basename = self.name + "." + path_basename
+            path_basename = f"{self.name}.{path_basename}"
         return os.path.normpath(
             os.path.join(obj, self.base_dir, path_dir, path_basename)
         )
@@ -366,7 +361,7 @@ class NinjaWriter:
             assert not order_only
             return None
         if len(targets) > 1 or order_only:
-            stamp = self.GypPathToUniqueOutput(name + ".stamp")
+            stamp = self.GypPathToUniqueOutput(f"{name}.stamp")
             targets = self.ninja.build(stamp, "stamp", targets, order_only=order_only)
             self.ninja.newline()
         return targets[0]
@@ -397,19 +392,18 @@ class NinjaWriter:
         self.xcode_settings = self.msvs_settings = None
         if self.flavor == "mac":
             self.xcode_settings = gyp.xcode_emulation.XcodeSettings(spec)
-            mac_toolchain_dir = generator_flags.get("mac_toolchain_dir", None)
-            if mac_toolchain_dir:
+            if mac_toolchain_dir := generator_flags.get("mac_toolchain_dir", None):
                 self.xcode_settings.mac_toolchain_dir = mac_toolchain_dir
 
         if self.flavor == "win":
             self.msvs_settings = gyp.msvs_emulation.MsvsSettings(spec, generator_flags)
             arch = self.msvs_settings.GetArch(config_name)
             self.ninja.variable("arch", self.win_env[arch])
-            self.ninja.variable("cc", "$cl_" + arch)
-            self.ninja.variable("cxx", "$cl_" + arch)
-            self.ninja.variable("cc_host", "$cl_" + arch)
-            self.ninja.variable("cxx_host", "$cl_" + arch)
-            self.ninja.variable("asm", "$ml_" + arch)
+            self.ninja.variable("cc", f"$cl_{arch}")
+            self.ninja.variable("cxx", f"$cl_{arch}")
+            self.ninja.variable("cc_host", f"$cl_{arch}")
+            self.ninja.variable("cxx_host", f"$cl_{arch}")
+            self.ninja.variable("asm", f"$ml_{arch}")
 
         if self.flavor == "mac":
             self.archs = self.xcode_settings.GetActiveArchs(config_name)
@@ -474,8 +468,8 @@ class NinjaWriter:
         try:
             sources = extra_sources + spec.get("sources", [])
         except TypeError:
-            print("extra_sources: ", str(extra_sources))
-            print('spec.get("sources"): ', str(spec.get("sources")))
+            print("extra_sources: ", extra_sources)
+            print('spec.get("sources"): ', spec.get("sources"))
             raise
         if sources:
             if self.flavor == "mac" and len(self.archs) > 1:
@@ -500,8 +494,11 @@ class NinjaWriter:
                 pch = gyp.xcode_emulation.MacPrefixHeader(
                     self.xcode_settings,
                     self.GypPathToNinja,
-                    lambda path, lang: self.GypPathToUniqueOutput(path + "-" + lang),
+                    lambda path, lang: self.GypPathToUniqueOutput(
+                        f"{path}-{lang}"
+                    ),
                 )
+
             link_deps = self.WriteSources(
                 self.ninja,
                 config_name,
@@ -511,9 +508,7 @@ class NinjaWriter:
                 pch,
                 spec,
             )
-            # Some actions/rules output 'sources' that are already object files.
-            obj_outputs = [f for f in sources if f.endswith(self.obj_ext)]
-            if obj_outputs:
+            if obj_outputs := [f for f in sources if f.endswith(self.obj_ext)]:
                 if self.flavor != "mac" or len(self.archs) == 1:
                     link_deps += [self.GypPathToNinja(o) for o in obj_outputs]
                 else:
@@ -636,7 +631,7 @@ class NinjaWriter:
         |fallback| is the gyp-level name of the step, usable as a fallback.
         """
         if self.toolset != "target":
-            verb += "(%s)" % self.toolset
+            verb += f"({self.toolset})"
         if message:
             return f"{verb} {self.ExpandSpecial(message)}"
         else:
@@ -650,7 +645,7 @@ class NinjaWriter:
         all_outputs = []
         for action in actions:
             # First write out a rule for the action.
-            name = "{}_{}".format(action["action_name"], self.hash_for_rules)
+            name = f'{action["action_name"]}_{self.hash_for_rules}'
             description = self.GenerateDescription(
                 "ACTION", action.get("message", None), name
             )
@@ -845,18 +840,10 @@ class NinjaWriter:
                     os.path.join(to_copy["destination"], basename), env
                 )
                 outputs += self.ninja.build(dst, "copy", src, order_only=prebuild)
-                if self.is_mac_bundle:
-                    # gyp has mac_bundle_resources to copy things into a bundle's
-                    # Resources folder, but there's no built-in way to copy files
-                    # to other places in the bundle.
-                    # Hence, some targets use copies for this.
-                    # Check if this file is copied into the current bundle,
-                    # and if so add it to the bundle depends so
-                    # that dependent targets get rebuilt if the copy input changes.
-                    if dst.startswith(
-                        self.xcode_settings.GetBundleContentsFolderPath()
-                    ):
-                        mac_bundle_depends.append(dst)
+                if self.is_mac_bundle and dst.startswith(
+                    self.xcode_settings.GetBundleContentsFolderPath()
+                ):
+                    mac_bundle_depends.append(dst)
 
         return outputs
 
@@ -933,8 +920,7 @@ class NinjaWriter:
         }
         settings = self.xcode_settings.xcode_settings[self.config_name]
         for settings_key, arg_name in settings_to_arg.items():
-            value = settings.get(settings_key)
-            if value:
+            if value := settings.get(settings_key):
                 extra_arguments[arg_name] = value
 
         partial_info_plist = None
@@ -944,10 +930,12 @@ class NinjaWriter:
             )
             extra_arguments["output-partial-info-plist"] = partial_info_plist
 
-        outputs = []
-        outputs.append(
-            os.path.join(self.xcode_settings.GetBundleResourceFolder(), "Assets.car")
-        )
+        outputs = [
+            os.path.join(
+                self.xcode_settings.GetBundleResourceFolder(), "Assets.car"
+            )
+        ]
+
         if partial_info_plist:
             outputs.append(partial_info_plist)
 

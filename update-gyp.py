@@ -18,16 +18,17 @@ args = parser.parse_args()
 
 tar_url = BASE_URL + args.tag + ".tar.gz"
 
-changed_files = subprocess.check_output(["git", "diff", "--name-only"]).strip()
-if changed_files:
+if changed_files := subprocess.check_output(
+    ["git", "diff", "--name-only"]
+).strip():
     raise Exception("Can't update gyp while you have uncommitted changes in node-gyp")
 
 with tempfile.TemporaryDirectory() as tmp_dir:
     tar_file = os.path.join(tmp_dir, "gyp.tar.gz")
     unzip_target = os.path.join(tmp_dir, "gyp")
     with open(tar_file, "wb") as f:
-        print("Downloading gyp-next@" + args.tag + " into temporary directory...")
-        print("From: " + tar_url)
+        print(f"Downloading gyp-next@{args.tag} into temporary directory...")
+        print(f"From: {tar_url}")
         with urllib.request.urlopen(tar_url) as in_file:
             f.write(in_file.read())
 
@@ -35,7 +36,7 @@ with tempfile.TemporaryDirectory() as tmp_dir:
         with tarfile.open(tar_file, "r:gz") as tar_ref:
             tar_ref.extractall(unzip_target)
 
-        print("Moving to current checkout (" + CHECKOUT_PATH + ")...")
+        print(f"Moving to current checkout ({CHECKOUT_PATH})...")
         if os.path.exists(CHECKOUT_GYP_PATH):
             shutil.rmtree(CHECKOUT_GYP_PATH)
         shutil.move(
@@ -43,4 +44,6 @@ with tempfile.TemporaryDirectory() as tmp_dir:
         )
 
 subprocess.check_output(["git", "add", "gyp"], cwd=CHECKOUT_PATH)
-subprocess.check_output(["git", "commit", "-m", "feat(gyp): update gyp to " + args.tag])
+subprocess.check_output(
+    ["git", "commit", "-m", f"feat(gyp): update gyp to {args.tag}"]
+)

@@ -49,8 +49,7 @@ class WinTool:
         # for mspdbsrv.exe.
         endpoint_name = None
         for arg in args:
-            m = _LINK_EXE_OUT_ARG.match(arg)
-            if m:
+            if m := _LINK_EXE_OUT_ARG.match(arg):
                 endpoint_name = re.sub(
                     r"\W+", "", "%s_%d" % (m.group("out"), os.getpid())
                 )
@@ -69,7 +68,7 @@ class WinTool:
         if len(args) < 1:
             raise Exception("Not enough arguments")
 
-        method = "Exec%s" % self._CommandifyName(args[0])
+        method = f"Exec{self._CommandifyName(args[0])}"
         return getattr(self, method)(*args[1:])
 
     def _CommandifyName(self, name_string):
@@ -363,10 +362,11 @@ class WinTool:
         project_dir = os.path.relpath(project_dir, BASE_DIR)
         selected_files = selected_files.split(";")
         ninja_targets = [
-            os.path.join(project_dir, filename) + "^^" for filename in selected_files
+            f"{os.path.join(project_dir, filename)}^^"
+            for filename in selected_files
         ]
-        cmd = ["ninja.exe"]
-        cmd.extend(ninja_targets)
+
+        cmd = ["ninja.exe", *ninja_targets]
         return subprocess.call(cmd, shell=True, cwd=BASE_DIR)
 
 

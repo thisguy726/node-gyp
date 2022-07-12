@@ -14,6 +14,7 @@ The expected usage is "gyp -f gypsh -D OS=desired_os".
 """
 
 
+
 import code
 import sys
 
@@ -33,10 +34,9 @@ _generator_identity_variables = [
     "SHARED_INTERMEDIATE_DIR",
 ]
 
-generator_default_variables = {}
-
-for v in _generator_identity_variables:
-    generator_default_variables[v] = "<(%s)" % v
+generator_default_variables = {
+    v: f"<({v})" for v in _generator_identity_variables
+}
 
 
 def GenerateOutput(target_list, target_dicts, data, params):
@@ -49,10 +49,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
     # Use a banner that looks like the stock Python one and like what
     # code.interact uses by default, but tack on something to indicate what
     # locals are available, and identify gypsh.
-    banner = "Python {} on {}\nlocals.keys() = {}\ngypsh".format(
-        sys.version,
-        sys.platform,
-        repr(sorted(locals.keys())),
-    )
+    banner = f"Python {sys.version} on {sys.platform}\nlocals.keys() = {repr(sorted(locals.keys()))}\ngypsh"
+
 
     code.interact(banner, local=locals)

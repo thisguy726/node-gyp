@@ -17,6 +17,7 @@ still result in a few indexer issues here and there.
 This generator has no automated tests, so expect it to be broken.
 """
 
+
 from xml.sax.saxutils import escape
 import os.path
 import subprocess
@@ -28,11 +29,16 @@ import xml.etree.cElementTree as ET
 
 generator_wants_static_library_dependencies_adjusted = False
 
-generator_default_variables = {}
+generator_default_variables = {
+    dirname: f"${dirname}"
+    for dirname in [
+        "INTERMEDIATE_DIR",
+        "PRODUCT_DIR",
+        "LIB_DIR",
+        "SHARED_LIB_DIR",
+    ]
+}
 
-for dirname in ["INTERMEDIATE_DIR", "PRODUCT_DIR", "LIB_DIR", "SHARED_LIB_DIR"]:
-    # Some gyp steps fail if these are empty(!), so we convert them to variables
-    generator_default_variables[dirname] = "$" + dirname
 
 for unused in [
     "RULE_INPUT_PATH",
@@ -158,14 +164,12 @@ def GetAllIncludeDirectories(
                         if not os.path.isabs(include_dir):
                             base_dir = os.path.dirname(target_name)
 
-                            include_dir = base_dir + "/" + include_dir
+                            include_dir = f"{base_dir}/{include_dir}"
                             include_dir = os.path.abspath(include_dir)
 
                         gyp_includes_set.add(include_dir)
 
-    # Generate a list that has all the include dirs.
-    all_includes_list = list(gyp_includes_set)
-    all_includes_list.sort()
+    all_includes_list = sorted(gyp_includes_set)
     for compiler_include in compiler_includes_list:
         if compiler_include not in gyp_includes_set:
             all_includes_list.append(compiler_include)
@@ -191,8 +195,7 @@ def GetCompilerPath(target_list, data, options):
 
     # Check to see if the compiler was specified as an environment variable.
     for key in ["CC_target", "CC", "CXX"]:
-        compiler = os.environ.get(key)
-        if compiler:
+        if compiler := os.environ.get(key):
             return compiler
 
     return "gcc"
@@ -248,10 +251,7 @@ def GetAllDefines(target_list, target_dicts, data, config_name, params, compiler
                 continue
             cpp_line_parts = cpp_line.split(" ", 2)
             key = cpp_line_parts[1]
-            if len(cpp_line_parts) >= 3:
-                val = cpp_line_parts[2]
-            else:
-                val = "1"
+            val = cpp_line_parts[2] if len(cpp_line_parts) >= 3 else "1"
             all_defines[key] = val
 
     return all_defines
@@ -453,8 +453,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
     if params["options"].generator_output:
         raise NotImplementedError("--generator_output not implemented for eclipse")
 
-    user_config = params.get("generator_flags", {}).get("config", None)
-    if user_config:
+    if user_config := params.get("generator_flags", {}).get("config", None):
         GenerateOutputForConfig(target_list, target_dicts, data, params, user_config)
     else:
         config_names = target_dicts[target_list[0]]["configurations"]

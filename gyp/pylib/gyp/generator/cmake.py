@@ -103,7 +103,7 @@ def NormjoinPathForceCMakeSource(base_path, rel_path):
   """
     if os.path.isabs(rel_path):
         return rel_path
-    if any([rel_path.startswith(var) for var in FULL_PATH_VARS]):
+    if any(rel_path.startswith(var) for var in FULL_PATH_VARS):
         return rel_path
     # TODO: do we need to check base_path for absolute variables as well?
     return os.path.join(
@@ -260,7 +260,7 @@ def WriteActions(target_name, actions, extra_sources, extra_deps, path_to_gyp, o
         action_target_name = f"{target_name}__{action_name}"
 
         inputs = action["inputs"]
-        inputs_name = action_target_name + "__input"
+        inputs_name = f"{action_target_name}__input"
         SetVariableList(
             output,
             inputs_name,
@@ -271,7 +271,7 @@ def WriteActions(target_name, actions, extra_sources, extra_deps, path_to_gyp, o
         cmake_outputs = [
             NormjoinPathForceCMakeSource(path_to_gyp, out) for out in outputs
         ]
-        outputs_name = action_target_name + "__output"
+        outputs_name = f"{action_target_name}__output"
         SetVariableList(output, outputs_name, cmake_outputs)
 
         # Build up a list of outputs.
@@ -286,7 +286,7 @@ def WriteActions(target_name, actions, extra_sources, extra_deps, path_to_gyp, o
         WriteVariable(output, outputs_name)
         output.write("\n")
 
-        if len(dirs) > 0:
+        if dirs:
             for directory in dirs:
                 output.write("  COMMAND ${CMAKE_COMMAND} -E make_directory ")
                 output.write(directory)
@@ -327,9 +327,10 @@ def WriteActions(target_name, actions, extra_sources, extra_deps, path_to_gyp, o
 
 
 def NormjoinRulePathForceCMakeSource(base_path, rel_path, rule_source):
-    if rel_path.startswith(("${RULE_INPUT_PATH}", "${RULE_INPUT_DIRNAME}")):
-        if any([rule_source.startswith(var) for var in FULL_PATH_VARS]):
-            return rel_path
+    if rel_path.startswith(
+        ("${RULE_INPUT_PATH}", "${RULE_INPUT_DIRNAME}")
+    ) and any(rule_source.startswith(var) for var in FULL_PATH_VARS):
+        return rel_path
     return NormjoinPathForceCMakeSource(base_path, rel_path)
 
 
@@ -345,10 +346,10 @@ def WriteRules(target_name, rules, extra_sources, extra_deps, path_to_gyp, outpu
         the Gyp file in which the target being generated is defined.
   """
     for rule in rules:
-        rule_name = StringToCMakeTargetName(target_name + "__" + rule["rule_name"])
+        rule_name = StringToCMakeTargetName(f"{target_name}__" + rule["rule_name"])
 
         inputs = rule.get("inputs", [])
-        inputs_name = rule_name + "__input"
+        inputs_name = f"{rule_name}__input"
         SetVariableList(
             output,
             inputs_name,
@@ -358,7 +359,7 @@ def WriteRules(target_name, rules, extra_sources, extra_deps, path_to_gyp, outpu
         var_outputs = []
 
         for count, rule_source in enumerate(rule.get("rule_sources", [])):
-            action_name = rule_name + "_" + str(count)
+            action_name = f"{rule_name}_{str(count)}"
 
             rule_source_dirname, rule_source_basename = os.path.split(rule_source)
             rule_source_root, rule_source_ext = os.path.splitext(rule_source_basename)
@@ -376,7 +377,7 @@ def WriteRules(target_name, rules, extra_sources, extra_deps, path_to_gyp, outpu
             # Create variables for the output, as 'local' variable will be unset.
             these_outputs = []
             for output_index, out in enumerate(outputs):
-                output_name = action_name + "_" + str(output_index)
+                output_name = f"{action_name}_{str(output_index)}"
                 SetVariable(
                     output,
                     output_name,
@@ -461,7 +462,7 @@ def WriteCopies(target_name, copies, extra_deps, path_to_gyp, output):
     path_to_gyp: relative path from CMakeLists.txt being generated to
         the Gyp file in which the target being generated is defined.
   """
-    copy_name = target_name + "__copies"
+    copy_name = f"{target_name}__copies"
 
     # CMake gets upset with custom targets with OUTPUT which specify no output.
     have_copies = any(copy["files"] for copy in copies)
@@ -503,10 +504,10 @@ def WriteCopies(target_name, copies, extra_deps, path_to_gyp, output):
 
     for copy in (file_copy, dir_copy):
         if copy.cmake_inputs:
-            copy.inputs_name = copy_name + "__input" + copy.ext
+            copy.inputs_name = f"{copy_name}__input{copy.ext}"
             SetVariableList(output, copy.inputs_name, copy.cmake_inputs)
 
-            copy.outputs_name = copy_name + "__output" + copy.ext
+            copy.outputs_name = f"{copy_name}__output{copy.ext}"
             SetVariableList(output, copy.outputs_name, copy.cmake_outputs)
 
     # add_custom_command
@@ -566,7 +567,7 @@ def CreateCMakeTargetBaseName(qualified_target):
     )
     cmake_target_base_name = gyp_target_name
     if gyp_target_toolset and gyp_target_toolset != "target":
-        cmake_target_base_name += "_" + gyp_target_toolset
+        cmake_target_base_name += f"_{gyp_target_toolset}"
     return StringToCMakeTargetName(cmake_target_base_name)
 
 
@@ -575,9 +576,9 @@ def CreateCMakeTargetFullName(qualified_target):
     gyp_file, gyp_target_name, gyp_target_toolset = gyp.common.ParseQualifiedTarget(
         qualified_target
     )
-    cmake_target_full_name = gyp_file + ":" + gyp_target_name
+    cmake_target_full_name = f"{gyp_file}:{gyp_target_name}"
     if gyp_target_toolset and gyp_target_toolset != "target":
-        cmake_target_full_name += "_" + gyp_target_toolset
+        cmake_target_full_name += f"_{gyp_target_toolset}"
     return StringToCMakeTargetName(cmake_target_full_name)
 
 
