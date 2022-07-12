@@ -155,10 +155,10 @@ def print_configuration_info():
         sys.path.append(os.path.abspath("pylib"))
         import gyp.MSVSVersion
 
-        print("  Win %s %s\n" % platform.win32_ver()[0:2])
-        print("  MSVS %s" % gyp.MSVSVersion.SelectVisualStudioVersion().Description())
+        print("  Win %s %s\n" % platform.win32_ver()[:2])
+        print(f"  MSVS {gyp.MSVSVersion.SelectVisualStudioVersion().Description()}")
     elif sys.platform in ("linux", "linux2"):
-        print("  Linux %s" % " ".join(platform.linux_distribution()))
+        print(f'  Linux {" ".join(platform.linux_distribution())}')
     print(f"  Python {platform.python_version()}")
     print(f"  PYTHONPATH={os.environ['PYTHONPATH']}")
     print()

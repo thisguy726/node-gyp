@@ -79,7 +79,7 @@ def _ConstructContentList(xml_parts, specification, pretty, level=0):
             "The first item of an EasyXml specification should be "
             "a string.  Specification was " + str(specification)
         )
-    xml_parts.append(indentation + "<" + name)
+    xml_parts.append(f"{indentation}<{name}")
 
     # Optionally in second position is a dictionary of the attributes.
     rest = specification[1:]
@@ -104,7 +104,7 @@ def _ConstructContentList(xml_parts, specification, pretty, level=0):
             xml_parts.append(indentation)
         xml_parts.append(f"</{name}>{new_line}")
     else:
-        xml_parts.append("/>%s" % new_line)
+        xml_parts.append(f"/>{new_line}")
 
 
 def WriteXmlIfChanged(content, path, encoding="utf-8", pretty=False,
@@ -149,7 +149,9 @@ _xml_escape_map = {
 }
 
 
-_xml_escape_re = re.compile("(%s)" % "|".join(map(re.escape, _xml_escape_map.keys())))
+_xml_escape_re = re.compile(
+    f'({"|".join(map(re.escape, _xml_escape_map.keys()))})'
+)
 
 
 def _XmlEscape(value, attr=False):
@@ -158,8 +160,6 @@ def _XmlEscape(value, attr=False):
     def replace(match):
         m = match.string[match.start() : match.end()]
         # don't replace single quotes in attrs
-        if attr and m == "'":
-            return m
-        return _xml_escape_map[m]
+        return m if attr and m == "'" else _xml_escape_map[m]
 
     return _xml_escape_re.sub(replace, value)

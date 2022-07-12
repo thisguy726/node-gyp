@@ -164,14 +164,14 @@ class AndroidMkWriter:
         self.WriteLn("include $(CLEAR_VARS)\n")
 
         # Module class and name.
-        self.WriteLn("LOCAL_MODULE_CLASS := " + self.android_class)
-        self.WriteLn("LOCAL_MODULE := " + self.android_module)
+        self.WriteLn(f"LOCAL_MODULE_CLASS := {self.android_class}")
+        self.WriteLn(f"LOCAL_MODULE := {self.android_module}")
         # Only emit LOCAL_MODULE_STEM if it's different to LOCAL_MODULE.
         # The library module classes fail if the stem is set. ComputeOutputParts
         # makes sure that stem == modulename in these cases.
         if self.android_stem != self.android_module:
-            self.WriteLn("LOCAL_MODULE_STEM := " + self.android_stem)
-        self.WriteLn("LOCAL_MODULE_SUFFIX := " + self.android_suffix)
+            self.WriteLn(f"LOCAL_MODULE_STEM := {self.android_stem}")
+        self.WriteLn(f"LOCAL_MODULE_SUFFIX := {self.android_suffix}")
         if self.toolset == "host":
             self.WriteLn("LOCAL_IS_HOST_MODULE := true")
             self.WriteLn("LOCAL_MULTILIB := $(GYP_HOST_MULTILIB)")
@@ -179,7 +179,7 @@ class AndroidMkWriter:
             self.WriteLn(
                 "LOCAL_MODULE_TARGET_ARCH := " "$(TARGET_$(GYP_VAR_PREFIX)ARCH)"
             )
-            self.WriteLn("LOCAL_SDK_VERSION := %s" % sdk_version)
+            self.WriteLn(f"LOCAL_SDK_VERSION := {sdk_version}")
 
         # Grab output directories; needed for Actions and Rules.
         if self.toolset == "host":

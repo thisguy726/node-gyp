@@ -39,7 +39,7 @@ class MacTool:
         if len(args) < 1:
             raise Exception("Not enough arguments")
 
-        method = "Exec%s" % self._CommandifyName(args[0])
+        method = f"Exec{self._CommandifyName(args[0])}"
         return getattr(self, method)(*args[1:])
 
     def _CommandifyName(self, name_string):
@@ -415,17 +415,15 @@ class MacTool:
         if keys:
             keys = json.loads(keys)
             for key, value in keys.items():
-                arg_name = "--" + key
+                arg_name = f"--{key}"
                 if isinstance(value, bool):
                     if value:
                         command_line.append(arg_name)
                 elif isinstance(value, list):
                     for v in value:
-                        command_line.append(arg_name)
-                        command_line.append(str(v))
+                        command_line.extend((arg_name, str(v)))
                 else:
-                    command_line.append(arg_name)
-                    command_line.append(str(value))
+                    command_line.extend((arg_name, str(value)))
         # Note: actool crashes if inputs path are relative, so use os.path.abspath
         # to get absolute path name for inputs.
         command_line.extend(map(os.path.abspath, inputs))
@@ -486,7 +484,7 @@ class MacTool:
             "embedded.mobileprovision",
         )
         shutil.copy2(source_path, target_path)
-        substitutions = self._GetSubstitutions(bundle_identifier, team_id + ".")
+        substitutions = self._GetSubstitutions(bundle_identifier, f"{team_id}.")
         return substitutions, provisioning_data["Entitlements"]
 
     def _FindProvisioningProfile(self, profile, bundle_identifier):
@@ -515,13 +513,14 @@ class MacTool:
         )
         if not os.path.isdir(profiles_dir):
             print(
-                "cannot find mobile provisioning for %s" % (bundle_identifier),
+                f"cannot find mobile provisioning for {bundle_identifier}",
                 file=sys.stderr,
             )
+
             sys.exit(1)
         provisioning_profiles = None
         if profile:
-            profile_path = os.path.join(profiles_dir, profile + ".mobileprovision")
+            profile_path = os.path.join(profiles_dir, f"{profile}.mobileprovision")
             if os.path.exists(profile_path):
                 provisioning_profiles = [profile_path]
         if not provisioning_profiles:
@@ -544,9 +543,10 @@ class MacTool:
                     )
         if not valid_provisioning_profiles:
             print(
-                "cannot find mobile provisioning for %s" % (bundle_identifier),
+                f"cannot find mobile provisioning for {bundle_identifier}",
                 file=sys.stderr,
             )
+
             sys.exit(1)
         # If the user has multiple provisioning profiles installed that can be
         # used for ${bundle_identifier}, pick the most specific one (ie. the
@@ -680,7 +680,7 @@ class MacTool:
     """
         if isinstance(data, str):
             for key, value in substitutions.items():
-                data = data.replace("$(%s)" % key, value)
+                data = data.replace(f"$({key})", value)
             return data
         if isinstance(data, list):
             return [self._ExpandVariables(v, substitutions) for v in data]
@@ -730,10 +730,7 @@ def WriteHmap(output_name, filelist):
     # Create empty hashmap buckets.
     buckets = [None] * capacity
     for file, path in filelist.items():
-        key = 0
-        for c in file:
-            key += ord(c.lower()) * 13
-
+        key = sum(ord(c.lower()) * 13 for c in file)
         # Fill next empty bucket.
         while buckets[key & capacity - 1] is not None:
             key = key + 1

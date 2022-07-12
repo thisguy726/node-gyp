@@ -46,8 +46,7 @@ def MakeGuid(name, seed="msvs_new"):
   """
     # Calculate a MD5 signature for the seed and name.
     d = hashlib.md5((str(seed) + str(name)).encode("utf-8")).hexdigest().upper()
-    # Convert most of the signature to GUID form (discard the rest)
-    guid = (
+    return (
         "{"
         + d[:8]
         + "-"
@@ -60,7 +59,6 @@ def MakeGuid(name, seed="msvs_new"):
         + d[20:32]
         + "}"
     )
-    return guid
 
 
 # ------------------------------------------------------------------------------
@@ -87,12 +85,7 @@ class MSVSFolder(MSVSSolutionEntry):
       items: List of solution items to include in the folder project.  May be
           None, if the folder does not directly contain items.
     """
-        if name:
-            self.name = name
-        else:
-            # Use last layer.
-            self.name = os.path.basename(path)
-
+        self.name = name or os.path.basename(path)
         self.path = path
         self.guid = guid
 
@@ -153,10 +146,7 @@ class MSVSProject(MSVSSolutionEntry):
 
         self.entry_type_guid = ENTRY_TYPE_GUIDS["project"]
 
-        if config_platform_overrides:
-            self.config_platform_overrides = config_platform_overrides
-        else:
-            self.config_platform_overrides = {}
+        self.config_platform_overrides = config_platform_overrides or {}
         self.fixpath_prefix = fixpath_prefix
         self.msbuild_toolset = None
 
@@ -212,12 +202,7 @@ class MSVSSolution:
         # Copy passed lists (or set to empty lists)
         self.entries = list(entries or [])
 
-        if variants:
-            # Copy passed list
-            self.variants = variants[:]
-        else:
-            # Use default
-            self.variants = ["Debug|Win32", "Release|Win32"]
+        self.variants = variants[:] if variants else ["Debug|Win32", "Release|Win32"]
         # TODO(rspangler): Need to be able to handle a mapping of solution config
         # to project config.  Should we be able to handle variants being a dict,
         # or add a separate variant_map variable?  If it's a dict, we can't
@@ -285,19 +270,17 @@ class MSVSSolution:
                     "\tEndProjectSection\r\n"
                 )
 
-            if isinstance(e, MSVSFolder):
-                if e.items:
-                    f.write("\tProjectSection(SolutionItems) = preProject\r\n")
-                    for i in e.items:
-                        f.write(f"\t\t{i} = {i}\r\n")
-                    f.write("\tEndProjectSection\r\n")
+            if isinstance(e, MSVSFolder) and e.items:
+                f.write("\tProjectSection(SolutionItems) = preProject\r\n")
+                for i in e.items:
+                    f.write(f"\t\t{i} = {i}\r\n")
+                f.write("\tEndProjectSection\r\n")
 
-            if isinstance(e, MSVSProject):
-                if e.dependencies:
-                    f.write("\tProjectSection(ProjectDependencies) = postProject\r\n")
-                    for d in e.dependencies:
-                        f.write(f"\t\t{d.get_guid()} = {d.get_guid()}\r\n")
-                    f.write("\tEndProjectSection\r\n")
+            if isinstance(e, MSVSProject) and e.dependencies:
+                f.write("\tProjectSection(ProjectDependencies) = postProject\r\n")
+                for d in e.dependencies:
+                    f.write(f"\t\t{d.get_guid()} = {d.get_guid()}\r\n")
+                f.write("\tEndProjectSection\r\n")
 
             f.write("EndProject\r\n")
 
@@ -353,7 +336,7 @@ class MSVSSolution:
 
         # Folder mappings
         # Omit this section if there are no folders
-        if any([e.entries for e in all_entries if isinstance(e, MSVSFolder)]):
+        if any(e.entries for e in all_entries if isinstance(e, MSVSFolder)):
             f.write("\tGlobalSection(NestedProjects) = preSolution\r\n")
             for e in all_entries:
                 if not isinstance(e, MSVSFolder):

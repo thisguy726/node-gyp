@@ -63,6 +63,7 @@ then the "all" target includes "b1" and "b2".
 """
 
 
+
 import gyp.common
 import json
 import os
@@ -93,15 +94,16 @@ generator_supports_multiple_toolsets = gyp.common.CrossCompileRequested()
 
 generator_wants_static_library_dependencies_adjusted = False
 
-generator_default_variables = {}
-for dirname in [
-    "INTERMEDIATE_DIR",
-    "SHARED_INTERMEDIATE_DIR",
-    "PRODUCT_DIR",
-    "LIB_DIR",
-    "SHARED_LIB_DIR",
-]:
-    generator_default_variables[dirname] = "!!!"
+generator_default_variables = {
+    dirname: "!!!"
+    for dirname in [
+        "INTERMEDIATE_DIR",
+        "SHARED_INTERMEDIATE_DIR",
+        "PRODUCT_DIR",
+        "LIB_DIR",
+        "SHARED_LIB_DIR",
+    ]
+}
 
 for unused in [
     "RULE_INPUT_PATH",
@@ -122,9 +124,7 @@ for unused in [
 
 def _ToGypPath(path):
     """Converts a path to the format used by gyp."""
-    if os.sep == "\\" and os.altsep == "/":
-        return path.replace("\\", "/")
-    return path
+    return path.replace("\\", "/") if os.sep == "\\" and os.altsep == "/" else path
 
 
 def _ResolveParent(path, base_path_components):
@@ -142,10 +142,9 @@ def _ResolveParent(path, base_path_components):
     if depth == len(base_path_components):
         return path
     return (
-        "/".join(base_path_components[0 : len(base_path_components) - depth])
+        "/".join(base_path_components[: len(base_path_components) - depth])
         + "/"
-        + path
-    )
+    ) + path
 
 
 def _AddSources(sources, base_path, base_path_components, result):
@@ -181,7 +180,7 @@ def _ToLocalPath(toplevel_dir, path):
     """Converts |path| to a path relative to |toplevel_dir|."""
     if path == toplevel_dir:
         return ""
-    if path.startswith(toplevel_dir + "/"):
+    if path.startswith(f"{toplevel_dir}/"):
         return path[len(toplevel_dir) + len("/") :]
     return path
 
@@ -270,13 +269,12 @@ class Config:
         if not config_path:
             return
         try:
-            f = open(config_path)
-            config = json.load(f)
-            f.close()
+            with open(config_path) as f:
+                config = json.load(f)
         except OSError:
-            raise Exception("Unable to open file " + config_path)
+            raise Exception(f"Unable to open file {config_path}")
         except ValueError as e:
-            raise Exception("Unable to parse config file " + config_path + str(e))
+            raise Exception(f"Unable to parse config file {config_path}{str(e)}")
         if not isinstance(config, dict):
             raise Exception("config_path must be a JSON file containing a dictionary")
         self.files = config.get("files", [])
@@ -378,9 +376,11 @@ def _GenerateTargets(data, target_list, target_dicts, toplevel_dir, files, build
         target_type = target_dicts[target_name]["type"]
         target.is_executable = target_type == "executable"
         target.is_static_library = target_type == "static_library"
-        target.is_or_has_linked_ancestor = (
-            target_type == "executable" or target_type == "shared_library"
-        )
+        target.is_or_has_linked_ancestor = target_type in [
+            "executable",
+            "shared_library",
+        ]
+
 
         build_file = gyp.common.ParseQualifiedTarget(target_name)[0]
         if build_file not in build_file_in_files:
@@ -440,7 +440,7 @@ def _GetUnqualifiedToTargetMapping(all_targets, to_find):
             result[extracted[1]] = all_targets[target_name]
             if not to_find:
                 return result, []
-    return result, [x for x in to_find]
+    return result, list(to_find)
 
 
 def _DoesTargetDependOnMatchingTargets(target):
@@ -450,10 +450,10 @@ def _DoesTargetDependOnMatchingTargets(target):
   target: the Target to look for."""
     if target.match_status == MATCH_STATUS_DOESNT_MATCH:
         return False
-    if (
-        target.match_status == MATCH_STATUS_MATCHES
-        or target.match_status == MATCH_STATUS_MATCHES_BY_DEPENDENCY
-    ):
+    if target.match_status in [
+        MATCH_STATUS_MATCHES,
+        MATCH_STATUS_MATCHES_BY_DEPENDENCY,
+    ]:
         return True
     for dep in target.deps:
         if _DoesTargetDependOnMatchingTargets(dep):
@@ -469,12 +469,12 @@ def _GetTargetsDependingOnMatchingTargets(possible_targets):
   directly on indirectly) on at least one of the targets containing the files
   supplied as input to analyzer.
   possible_targets: targets to search from."""
-    found = []
     print("Targets that matched by dependency:")
-    for target in possible_targets:
-        if _DoesTargetDependOnMatchingTargets(target):
-            found.append(target)
-    return found
+    return [
+        target
+        for target in possible_targets
+        if _DoesTargetDependOnMatchingTargets(target)
+    ]
 
 
 def _AddCompileTargets(target, roots, add_if_no_ancestor, result):
@@ -582,11 +582,10 @@ def _WriteOutput(params, **values):
         print(json.dumps(values))
         return
     try:
-        f = open(output_path, "w")
-        f.write(json.dumps(values) + "\n")
-        f.close()
+        with open(output_path, "w") as f:
+            f.write(json.dumps(values) + "\n")
     except OSError as e:
-        print("Error writing to output file", output_path, str(e))
+        print("Error writing to output file", output_path, e)
 
 
 def _WasGypIncludeFileModified(params, files):
@@ -621,7 +620,7 @@ def CalculateVariables(default_variables, params):
         gyp.msvs_emulation.CalculateCommonVariables(default_variables, params)
     else:
         operating_system = flavor
-        if flavor == "android":
+        if operating_system == "android":
             operating_system = "linux"  # Keep this legacy behavior for now.
         default_variables.setdefault("OS", operating_system)
 
@@ -683,11 +682,9 @@ class TargetCalculator:
         )
         test_target_names_contains_all = "all" in self._test_target_names
         if test_target_names_contains_all:
-            test_targets = [
-                x for x in (set(test_targets_no_all) | set(self._root_targets))
-            ]
+            test_targets = list(set(test_targets_no_all) | set(self._root_targets))
         else:
-            test_targets = [x for x in test_targets_no_all]
+            test_targets = list(test_targets_no_all)
         print("supplied test_targets")
         for target_name in self._test_target_names:
             print("\t", target_name)
@@ -702,9 +699,10 @@ class TargetCalculator:
         if matching_test_targets_contains_all:
             # Remove any of the targets for all that were not explicitly supplied,
             # 'all' is subsequentely added to the matching names below.
-            matching_test_targets = [
-                x for x in (set(matching_test_targets) & set(test_targets_no_all))
-            ]
+            matching_test_targets = list(
+                set(matching_test_targets) & set(test_targets_no_all)
+            )
+
         print("matched test_targets")
         for target in matching_test_targets:
             print("\t", target.name)
@@ -729,9 +727,7 @@ class TargetCalculator:
             self._supplied_target_names_no_all(), self._unqualified_mapping
         )
         if "all" in self._supplied_target_names():
-            supplied_targets = [
-                x for x in (set(supplied_targets) | set(self._root_targets))
-            ]
+            supplied_targets = list(set(supplied_targets) | set(self._root_targets))
         print("Supplied test_targets & compile_targets")
         for target in supplied_targets:
             print("\t", target.name)
